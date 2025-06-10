@@ -47,6 +47,7 @@ canvas {
 }
 
 #info-panel {
+  position: relative;
   z-index: 20;
 }
 
