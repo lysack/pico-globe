@@ -28,8 +28,48 @@
     >
       ⟳
     </button>
+    <button
+      id="show-info-btn"
+      style="
+        display: none;
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 1001;
+        font-size: 1em;
+        padding: 0.4em 1em;
+        border-radius: 16px;
+        border: none;
+        background: #222;
+        color: #7ecfff;
+        box-shadow: 0 2px 8px #0008;
+        opacity: 0.85;
+      "
+    >
+      Show Info
+    </button>
     <div id="side-panel-stack">
       <div id="info-panel">
+        <button
+          id="hide-info-btn"
+          style="
+            display: none;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 1002;
+            font-size: 1em;
+            padding: 0.2em 0.7em;
+            border-radius: 12px;
+            border: none;
+            background: #222;
+            color: #7ecfff;
+            box-shadow: 0 2px 8px #0008;
+            opacity: 0.85;
+          "
+        >
+          Hide
+        </button>
         <h1>VE7NFR Balloon Flight Path (proof of concept)</h1>
         <p id="flight-info"></p>
         <p id="start-coords"></p>
@@ -496,6 +536,29 @@
       document.getElementById("reload-btn").addEventListener("click", () => {
         location.reload();
       });
+
+      const infoPanel = document.getElementById("info-panel");
+      const hideInfoBtn = document.getElementById("hide-info-btn");
+      const showInfoBtn = document.getElementById("show-info-btn");
+      function updateInfoPanelButtons() {
+        if (window.innerWidth <= 600) {
+          hideInfoBtn.style.display = "block";
+        } else {
+          hideInfoBtn.style.display = "none";
+          showInfoBtn.style.display = "none";
+          infoPanel.style.display = "";
+        }
+      }
+      hideInfoBtn.addEventListener("click", () => {
+        infoPanel.style.display = "none";
+        showInfoBtn.style.display = "block";
+      });
+      showInfoBtn.addEventListener("click", () => {
+        infoPanel.style.display = "";
+        showInfoBtn.style.display = "none";
+      });
+      window.addEventListener("resize", updateInfoPanelButtons);
+      updateInfoPanelButtons();
     </script>
   </body>
 </html>
