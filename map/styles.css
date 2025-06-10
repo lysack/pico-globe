@@ -1,0 +1,196 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  background-color: #000;
+  color: #fff;
+}
+
+canvas {
+  display: block;
+}
+
+#side-panel-stack {
+  position: absolute;
+  top: 32px;
+  left: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  z-index: 20;
+  align-items: flex-start;
+}
+
+#info-panel,
+#balloon-info-panel {
+  position: static;
+  width: 340px;
+  border-radius: 24px;
+  background: linear-gradient(
+    135deg,
+    rgba(40, 44, 60, 0.82) 60%,
+    rgba(60, 80, 120, 0.32) 100%
+  );
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.38),
+    0 1.5px 8px 0 rgba(126, 207, 255, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1.5px solid rgba(126, 207, 255, 0.13);
+  padding: 32px 28px 26px 28px;
+  color: #fff;
+  font-family: inherit;
+  transition: box-shadow 0.2s, background 0.2s;
+  max-width: 340px;
+  position: relative;
+  overflow: visible;
+}
+
+#info-panel {
+  z-index: 20;
+}
+
+#balloon-info-panel {
+  z-index: 30;
+  display: none;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow-y: auto;
+  min-height: 80px;
+  min-width: 340px;
+  position: relative;
+}
+
+#balloon-info-panel.active {
+  display: flex;
+}
+
+#info-panel h1,
+#balloon-info-panel h2 {
+  margin-top: 0;
+  margin-bottom: 18px;
+  font-size: 1.55em;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #fff;
+  text-shadow: 0 2px 16px #7ecfff99, 0 2px 8px rgba(0, 0, 0, 0.18);
+  filter: drop-shadow(0 0 6px #7ecfff66);
+}
+
+#balloon-info-panel .close-btn {
+  position: absolute;
+  top: 22px;
+  right: 32px;
+  font-size: 1.7em;
+  color: #fff;
+  background: rgba(126, 207, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.85;
+  box-shadow: 0 2px 8px 0 #7ecfff22;
+  transition: background 0.2s, opacity 0.2s, box-shadow 0.2s;
+  z-index: 40;
+  pointer-events: auto;
+}
+
+#balloon-info-panel .close-btn:hover {
+  background: rgba(126, 207, 255, 0.22);
+  opacity: 1;
+  box-shadow: 0 4px 16px 0 #7ecfff55;
+}
+
+#info-panel p {
+  margin: 0 0 10px 0;
+  font-size: 1.08em;
+  color: #e0e6f0;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+#info-panel .label {
+  color: #7ecfff;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 8px #7ecfff33;
+}
+
+#info-panel b {
+  color: #7ecfff;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 8px #7ecfff33;
+}
+
+#balloon-details p b {
+  color: #7ecfff;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 8px #7ecfff33;
+}
+
+#view-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(40, 60, 100, 0.22);
+  border-radius: 14px;
+  padding: 8px 14px 8px 16px;
+  margin: 18px 0 0 0;
+  box-shadow: 0 2px 12px 0 #7ecfff18;
+  border: 1.5px solid rgba(126, 207, 255, 0.1);
+  width: 100%;
+  max-width: 100%;
+}
+
+#toggle-button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.08em;
+  font-weight: 700;
+  padding: 0 0.5em;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  box-shadow: none;
+  outline: none;
+}
+
+#toggle-button:hover {
+  background: rgba(126, 207, 255, 0.13);
+  color: #7ecfff;
+}
+
+#zoom-controls {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+}
+
+.zoom-button {
+  background: rgba(126, 207, 255, 0.1);
+  border: 1.5px solid rgba(126, 207, 255, 0.18);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 1.08em;
+  font-weight: 700;
+  padding: 8px 0;
+  box-shadow: 0 2px 8px 0 #7ecfff22;
+  transition: background 0.2s, border 0.2s, box-shadow 0.2s, transform 0.15s;
+  width: 48px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.zoom-button:hover {
+  background: rgba(126, 207, 255, 0.18);
+  border: 1.5px solid #7ecfff;
+  box-shadow: 0 4px 16px 0 #7ecfff55;
+  transform: translateY(-2px) scale(1.07);
+}

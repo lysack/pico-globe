@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VE7NFR Pico Tracker</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  </head>
+  <body>
+    <div id="side-panel-stack">
+      <div id="info-panel">
+        <h1>VE7NFR Balloon Flight Path (proof of concept)</h1>
+        <p id="flight-info"></p>
+        <p id="start-coords"></p>
+        <p id="end-coords"></p>
+        <div id="view-controls">
+          <div id="toggle-button">Toggle View</div>
+          <div id="zoom-controls">
+            <div class="zoom-button" id="zoom-in">+</div>
+            <div class="zoom-button" id="zoom-out">-</div>
+          </div>
+        </div>
+      </div>
+      <div id="balloon-info-panel" class="active">
+        <button class="close-btn" id="close-balloon-info">×</button>
+        <h2 id="balloon-title">Balloon Info</h2>
+        <div id="balloon-details">
+          <p>Select a marker to see details.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import three.js and add-ons -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+      let scene, camera, renderer, earth, controls;
+      let startMarker, endMarker;
+      let dayMaterial, nightMaterial, currentViewIsNight;
+      let ambientLight;
+      let targetZoomDistance = null;
+      let currentZoomDistance = null;
+      let markerObjects = [];
+      let markerDataMap = new Map();
+      let raycaster, mouse;
+      let isAutoRotate = true;
+
+      // --- CONFIGURATION ---
+      const EARTH_RADIUS = 100;
+      const ALTITUDE_SCALE = 0.001;
+      const ZOOM_ANIMATION_SPEED = 0.1; // Controls how fast the zoom animation happens
+
+      // --- DATA ---
+      let flightPathData = [];
+
+      // --- INITIALIZATION ---
+      async function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        // Position camera to look at the first waypoint
+        const firstSpotLat = 49.1875;
+        const firstSpotLon = -122.541667;
+        const firstSpotPos = latLonAltToVector3(firstSpotLat, firstSpotLon, 0);
+        camera.position.copy(firstSpotPos).multiplyScalar(2); // Position camera 2x the distance from center
+        camera.lookAt(firstSpotPos);
+
+        // Using the standard renderer only.
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // Raycaster for marker picking
+        raycaster = new THREE.Raycaster();
+        mouse = new THREE.Vector2();
+
+        // Lighting
+        ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // Start with dim light for night
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        directionalLight.position.set(-1, 1, 1).normalize();
+        scene.add(directionalLight);
+
+        addStarfield();
+
+        // Create materials
+        const textureLoader = new THREE.TextureLoader();
+        const nightTexture = textureLoader.load(
+          "https://unpkg.com/three-globe@2.27.1/example/img/earth-night.jpg"
+        );
+        const dayTexture = textureLoader.load(
+          "https://unpkg.com/three-globe@2.27.1/example/img/earth-day.jpg"
+        );
+
+        nightMaterial = new THREE.MeshLambertMaterial({ map: nightTexture });
+        dayMaterial = new THREE.MeshBasicMaterial({ map: dayTexture });
+
+        currentViewIsNight = true;
+
+        // Earth
+        const earthGeometry = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
+        earth = new THREE.Mesh(earthGeometry, nightMaterial);
+        scene.add(earth);
+
+        // Fetch waypoints from JSON file
+        try {
+          const response = await fetch("waypoints.json");
+          if (!response.ok) throw new Error("Failed to load waypoints.json");
+          flightPathData = await response.json();
+          drawFlightPath(flightPathData);
+        } catch (err) {
+          console.error("Error loading waypoints:", err);
+        }
+
+        // Controls
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enablePan = false;
+        controls.minDistance = 120;
+        controls.maxDistance = 500;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.2;
+
+        // Event Listeners
+        window.addEventListener("resize", onWindowResize, false);
+        document
+          .getElementById("toggle-button")
+          .addEventListener("click", toggleEarthView);
+
+        // Add zoom button event listeners
+        document.getElementById("zoom-in").addEventListener("click", () => {
+          const currentDistance = camera.position.distanceTo(
+            new THREE.Vector3(0, 0, 0)
+          );
+          targetZoomDistance = Math.max(
+            currentDistance * 0.8,
+            controls.minDistance
+          );
+          currentZoomDistance = currentDistance;
+        });
+
+        document.getElementById("zoom-out").addEventListener("click", () => {
+          const currentDistance = camera.position.distanceTo(
+            new THREE.Vector3(0, 0, 0)
+          );
+          targetZoomDistance = Math.min(
+            currentDistance * 1.2,
+            controls.maxDistance
+          );
+          currentZoomDistance = currentDistance;
+        });
+
+        // Add click event for picking markers
+        renderer.domElement.addEventListener(
+          "pointerdown",
+          onPointerDown,
+          false
+        );
+
+        // Add click event to toggle auto-rotation (ignore clicks on UI panels)
+        renderer.domElement.addEventListener("click", function (e) {
+          // Check if click is inside a UI panel
+          const panels = [document.getElementById("side-panel-stack")];
+          for (const panel of panels) {
+            if (panel && panel.contains(e.target)) return;
+          }
+          // Toggle auto-rotation
+          isAutoRotate = !isAutoRotate;
+          controls.autoRotate = isAutoRotate;
+        });
+      }
+
+      // *** Function to create a glowing sprite texture ***
+      function createGlowTexture() {
+        const canvas = document.createElement("canvas");
+        canvas.width = 64;
+        canvas.height = 64;
+        const context = canvas.getContext("2d");
+        const gradient = context.createRadialGradient(
+          canvas.width / 2,
+          canvas.height / 2,
+          0,
+          canvas.width / 2,
+          canvas.height / 2,
+          canvas.width / 2
+        );
+        gradient.addColorStop(0, "rgba(255,255,255,1)");
+        gradient.addColorStop(0.2, "rgba(255,255,255,1)");
+        gradient.addColorStop(0.4, "rgba(255,255,255,0.6)");
+        gradient.addColorStop(1, "rgba(255,255,255,0)");
+
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        return new THREE.CanvasTexture(canvas);
+      }
+
+      function addStarfield() {
+        const starGeometry = new THREE.BufferGeometry();
+        const starVertices = [];
+        for (let i = 0; i < 10000; i++) {
+          const x = THREE.MathUtils.randFloatSpread(2000);
+          const y = THREE.MathUtils.randFloatSpread(2000);
+          const z = THREE.MathUtils.randFloatSpread(2000);
+          starVertices.push(x, y, z);
+        }
+        starGeometry.setAttribute(
+          "position",
+          new THREE.Float32BufferAttribute(starVertices, 3)
+        );
+        const starMaterial = new THREE.PointsMaterial({
+          color: 0x888888,
+          size: 0.7,
+        });
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+      }
+
+      function latLonAltToVector3(lat, lon, alt = 0) {
+        const radius = EARTH_RADIUS + alt * ALTITUDE_SCALE;
+        const latRad = lat * (Math.PI / 180);
+        const lonRad = -lon * (Math.PI / 180);
+        const x = radius * Math.cos(latRad) * Math.cos(lonRad);
+        const y = radius * Math.sin(latRad);
+        const z = radius * Math.cos(latRad) * Math.sin(lonRad);
+        return new THREE.Vector3(x, y, z);
+      }
+
+      function drawFlightPath(pathData) {
+        if (!pathData || pathData.length === 0) return;
+
+        const pathPoints = [];
+        const pathColors = [];
+        const color_start = new THREE.Color(0x00ff00);
+        const color_end = new THREE.Color(0xff0000);
+
+        // *** Create one glow texture to reuse for all markers ***
+        const glowTexture = createGlowTexture();
+
+        pathData.forEach((point, index) => {
+          const pointPosition = latLonAltToVector3(
+            point.lat,
+            point.lon,
+            point.alt
+          );
+          pathPoints.push(pointPosition);
+
+          const color = new THREE.Color().lerpColors(
+            color_start,
+            color_end,
+            index / (pathData.length - 1)
+          );
+          pathColors.push(color.r, color.g, color.b);
+
+          const isStartOrEnd = index === 0 || index === pathData.length - 1;
+          const isEveryNth = index % 2 === 0;
+          if (isStartOrEnd || isEveryNth) {
+            // Use Sprites for markers
+            const spriteMaterial = new THREE.SpriteMaterial({
+              map: glowTexture,
+              color: color,
+              blending: THREE.AdditiveBlending,
+              transparent: true,
+              opacity: isStartOrEnd ? 1 : 0.5,
+            });
+            const marker = new THREE.Sprite(spriteMaterial);
+            marker.scale.set(isStartOrEnd ? 10 : 4, isStartOrEnd ? 10 : 4, 1);
+            marker.position.copy(pointPosition);
+            scene.add(marker);
+
+            // Store marker and its data for click detection
+            markerObjects.push(marker);
+            markerDataMap.set(marker, {
+              name: isStartOrEnd
+                ? index === 0
+                  ? "Start"
+                  : "End"
+                : `Spot ${index + 1}`,
+              ...point,
+              index,
+            });
+
+            if (index === 0) startMarker = marker;
+            if (index === pathData.length - 1) endMarker = marker;
+
+            // Draw altitude line only for these key points
+            const surfacePosition = latLonAltToVector3(point.lat, point.lon, 0);
+            const lineGeom = new THREE.BufferGeometry().setFromPoints([
+              surfacePosition,
+              pointPosition,
+            ]);
+            const lineMat = new THREE.LineBasicMaterial({
+              color: 0xffffff,
+              transparent: true,
+              opacity: 0.3,
+              linewidth: 3,
+            });
+            const altitudeLine = new THREE.Line(lineGeom, lineMat);
+            scene.add(altitudeLine);
+          }
+        });
+
+        const pathGeometry = new THREE.BufferGeometry().setFromPoints(
+          pathPoints
+        );
+        pathGeometry.setAttribute(
+          "color",
+          new THREE.Float32BufferAttribute(pathColors, 3)
+        );
+        const pathMaterial = new THREE.LineBasicMaterial({
+          vertexColors: true,
+          linewidth: 3,
+        });
+        const flightPathLine = new THREE.Line(pathGeometry, pathMaterial);
+        scene.add(flightPathLine);
+
+        const start = flightPathData[0];
+        const end = flightPathData[pathData.length - 1];
+        const validSpeeds = pathData
+          .map((p) => p.speed_kmh)
+          .filter((v) => typeof v === "number" && !isNaN(v));
+        const validTemps = pathData
+          .map((p) => p.tempc)
+          .filter((v) => typeof v === "number" && !isNaN(v));
+        const avgSpeed = validSpeeds.length
+          ? (
+              validSpeeds.reduce((a, b) => a + b, 0) / validSpeeds.length
+            ).toFixed(1)
+          : "N/A";
+        const avgTemp = validTemps.length
+          ? (validTemps.reduce((a, b) => a + b, 0) / validTemps.length).toFixed(
+              1
+            )
+          : "N/A";
+
+        document.getElementById("flight-info").innerHTML =
+          `<span class="label">Number of Spots:</span> ${pathData.length}<br>` +
+          `<span class="label">Average Speed:</span> ${avgSpeed} km/h<br>` +
+          `<span class="label">Average Temp:</span> ${avgTemp} °C`;
+        document.getElementById(
+          "start-coords"
+        ).innerHTML = `<span class="label">Start:</span> ${start.lat.toFixed(
+          2
+        )}, ${start.lon.toFixed(2)} (${start.datetime || "N/A"})`;
+        document.getElementById(
+          "end-coords"
+        ).innerHTML = `<span class="label">End:</span> ${end.lat.toFixed(
+          2
+        )}, ${end.lon.toFixed(2)} (${end.datetime || "N/A"})`;
+      }
+
+      function toggleEarthView() {
+        currentViewIsNight = !currentViewIsNight;
+        if (currentViewIsNight) {
+          earth.material = nightMaterial;
+          ambientLight.intensity = 0.3;
+        } else {
+          earth.material = dayMaterial;
+          ambientLight.intensity = 1.0;
+        }
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      const clock = new THREE.Clock();
+      function animate() {
+        requestAnimationFrame(animate);
+        const delta = clock.getDelta();
+
+        // Handle smooth zoom animation
+        if (targetZoomDistance !== null && currentZoomDistance !== null) {
+          currentZoomDistance = THREE.MathUtils.lerp(
+            currentZoomDistance,
+            targetZoomDistance,
+            ZOOM_ANIMATION_SPEED
+          );
+
+          // Update camera position
+          camera.position.normalize().multiplyScalar(currentZoomDistance);
+
+          // Check if we're close enough to target to stop animation
+          if (Math.abs(currentZoomDistance - targetZoomDistance) < 0.1) {
+            targetZoomDistance = null;
+            currentZoomDistance = null;
+          }
+        }
+
+        // pulsing animation for start and end markers
+        const pulse = Math.sin(clock.getElapsedTime() * 3) * 2 + 10; // Base size 10, pulse +/- 2
+        const smallPulse = Math.sin(clock.getElapsedTime() * 3) * 1 + 5; // Base size 5
+
+        if (startMarker) startMarker.scale.set(pulse, pulse, 1.0);
+        if (endMarker) endMarker.scale.set(pulse, pulse, 1.0);
+
+        controls.update(delta);
+        renderer.render(scene, camera);
+      }
+
+      function onPointerDown(event) {
+        // Calculate mouse position in normalized device coordinates (-1 to +1)
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(markerObjects, false);
+        if (intersects.length > 0) {
+          const marker = intersects[0].object;
+          const data = markerDataMap.get(marker);
+          showBalloonInfo(data);
+        }
+      }
+
+      function showBalloonInfo(data) {
+        const panel = document.getElementById("balloon-info-panel");
+        panel.classList.add("active");
+        document.getElementById("balloon-title").innerText =
+          data.name || "Balloon Info";
+        document.getElementById("balloon-details").innerHTML = `
+          <p><b>Date/Time:</b> ${data.datetime ? data.datetime : "N/A"}</p>
+          <p><b>Latitude:</b> ${
+            data.lat !== undefined ? data.lat + "°" : "N/A"
+          }</p>
+          <p><b>Longitude:</b> ${
+            data.lon !== undefined ? data.lon + "°" : "N/A"
+          }</p>
+          <p><b>Altitude:</b> ${
+            data.alt !== undefined ? data.alt.toLocaleString() + " m" : "N/A"
+          }</p>
+          <p><b>Speed:</b> ${
+            data.speed_kmh !== undefined && data.speed_kmh !== null
+              ? data.speed_kmh + " km/h"
+              : "N/A"
+          }</p>
+          <p><b>Temperature:</b> ${
+            data.tempc !== undefined && data.tempc !== null
+              ? data.tempc + " °C"
+              : "N/A"
+          }</p>
+    
+        `;
+      }
+
+      init().then(() => animate());
+
+      // Attach close button event after DOM is ready
+      document.addEventListener("DOMContentLoaded", () => {
+        const closeBtn = document.getElementById("close-balloon-info");
+        if (closeBtn) {
+          closeBtn.addEventListener("click", () => {
+            document
+              .getElementById("balloon-info-panel")
+              .classList.remove("active");
+          });
+        }
+      });
+    </script>
+  </body>
+</html>
