@@ -197,29 +197,31 @@ canvas {
 
 @media (max-width: 600px) {
   #side-panel-stack {
-    top: 8px;
+    top: 4px;
     left: 0;
     width: 100vw;
     align-items: center;
-    gap: 12px;
+    gap: 6px;
   }
   #info-panel,
   #balloon-info-panel {
-    width: 95vw;
-    max-width: 95vw;
+    width: 98vw;
+    max-width: 98vw;
     min-width: unset;
-    padding: 16px 6vw 16px 6vw;
-    font-size: 1em;
-    border-radius: 14px;
+    padding: 8px 2vw 8px 2vw;
+    font-size: 0.95em;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.18);
   }
   #info-panel h1,
   #balloon-info-panel h2 {
-    font-size: 1.1em;
+    font-size: 1em;
     text-align: center;
+    margin-bottom: 10px;
   }
   #view-controls {
     flex-direction: column;
-    gap: 8px;
-    padding: 8px 0;
+    gap: 4px;
+    padding: 4px 0;
   }
 }
