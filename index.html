@@ -9,6 +9,25 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   </head>
   <body>
+    <button
+      id="reload-btn"
+      style="
+        position: fixed;
+        top: 8px;
+        right: 8px;
+        z-index: 1000;
+        font-size: 1.5em;
+        padding: 0.3em 0.6em;
+        border-radius: 50%;
+        border: none;
+        background: #222;
+        color: #7ecfff;
+        box-shadow: 0 2px 8px #0008;
+        opacity: 0.85;
+      "
+    >
+      ⟳
+    </button>
     <div id="side-panel-stack">
       <div id="info-panel">
         <h1>VE7NFR Balloon Flight Path (proof of concept)</h1>
@@ -472,6 +491,10 @@
               .classList.remove("active");
           });
         }
+      });
+
+      document.getElementById("reload-btn").addEventListener("click", () => {
+        location.reload();
       });
     </script>
   </body>
