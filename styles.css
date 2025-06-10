@@ -195,7 +195,7 @@ canvas {
   transform: translateY(-2px) scale(1.07);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 1024px) {
   #side-panel-stack {
     top: 4px;
     left: 0;
