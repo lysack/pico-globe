@@ -231,3 +231,15 @@ canvas {
     width: 100%;
   }
 }
+
+.mobile-only {
+  display: none;
+}
+@media (max-width: 1024px) {
+  .mobile-only {
+    display: block;
+  }
+  #info-panel {
+    padding-top: 2.5em;
+  }
+}
